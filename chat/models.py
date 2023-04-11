@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 
 
 class BaseModel(models.Model):
@@ -11,7 +11,9 @@ class BaseModel(models.Model):
 
 
 class Thread(BaseModel):
-    participants = models.ManyToManyField(User, verbose_name=("participants"))
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, verbose_name=("participants"), related_name="threads"
+    )
 
     def add_participant(self, participant):
         if self.participants.count() >= 2:
@@ -26,11 +28,17 @@ class Thread(BaseModel):
 
 class Message(BaseModel):
     sender = models.OneToOneField(
-        User, verbose_name=("sender"), on_delete=models.CASCADE
+        settings.AUTH_USER_MODEL,
+        verbose_name=("sender"),
+        on_delete=models.CASCADE,
+        related_name="messages",
     )
     text = models.TextField(("text"), null=False, max_length=50)
     thread = models.OneToOneField(
-        Thread, verbose_name=("thread"), on_delete=models.CASCADE
+        Thread,
+        verbose_name=("thread"),
+        on_delete=models.CASCADE,
+        related_name="messages",
     )
     is_read = models.BooleanField(default=False)
 
