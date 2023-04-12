@@ -22,7 +22,9 @@ class Thread(BaseModel):
             self.participants.add(participant)
 
     def __str__(self) -> str:
-        users = list(self.participants.all().values_list("username", flat=True))
+        users = list(
+            self.participants.all().values_list("username", flat=True)
+        )  # get list of participants
         return f"{users[0]} and {users[1]} Chat"
 
 

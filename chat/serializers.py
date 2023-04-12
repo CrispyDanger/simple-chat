@@ -28,3 +28,4 @@ class ThreadSerializer(serializers.ModelSerializer):
             "id",
             "participants",
         ]
+        read_only_fields = ["id"]
