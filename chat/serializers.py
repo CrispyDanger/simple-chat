@@ -11,12 +11,20 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
 
-class MessageSerialzer(serializers.ModelSerializer):
+class MessageReadSerializer(serializers.ModelSerializer):
     sender = UserSerializer()
 
     class Meta:
         model = Message
-        fields = ["sender", "text", "is_read"]
+        fields = ["sender", "text", "is_read", "id"]
+
+
+class MessageWriteSerializer(serializers.ModelSerializer):
+    sender = serializers.CharField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = Message
+        fields = ["sender", "text", "is_read", "thread"]
 
 
 class ThreadSerializer(serializers.ModelSerializer):
@@ -29,3 +37,14 @@ class ThreadSerializer(serializers.ModelSerializer):
             "participants",
         ]
         read_only_fields = ["id"]
+
+
+class UnreadMessageSerializer(serializers.ModelSerializer):
+    unread_messages = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Message
+        fields = ["unread_messages"]
+
+    def get_unread_messages(self, obj):
+        return obj.count()

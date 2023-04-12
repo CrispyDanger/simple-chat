@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+import uuid
 
 
 class BaseModel(models.Model):
@@ -16,7 +17,7 @@ class Thread(BaseModel):
     )
 
     def add_participant(self, participant):
-        if self.participants.count() >= 2:
+        if self.participants.count() >= 2 and participant not in self.participants:
             raise Exception("Too many participants")
         else:
             self.participants.add(participant)
@@ -29,14 +30,14 @@ class Thread(BaseModel):
 
 
 class Message(BaseModel):
-    sender = models.OneToOneField(
+    sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name=("sender"),
         on_delete=models.CASCADE,
         related_name="messages",
     )
     text = models.TextField(("text"), null=False, max_length=50)
-    thread = models.OneToOneField(
+    thread = models.ForeignKey(
         Thread,
         verbose_name=("thread"),
         on_delete=models.CASCADE,

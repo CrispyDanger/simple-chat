@@ -1,22 +1,33 @@
-from .serializers import ThreadSerializer
+from .serializers import (
+    ThreadSerializer,
+    MessageReadSerializer,
+    MessageWriteSerializer,
+    UnreadMessageSerializer,
+)
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework.generics import (
+    ListCreateAPIView,
+    DestroyAPIView,
+    ListAPIView,
+    CreateAPIView,
+    RetrieveUpdateAPIView,
+)
 from .models import Thread, Message
 from rest_framework import status
 from django.contrib.auth.models import User
+from rest_framework.views import APIView
 
 
-class ThreadView(APIView):
+class ThreadListView(ListCreateAPIView):
+    serializer_class = ThreadSerializer
+
+    def get_queryset(self):
+        threads = Thread.objects.filter(participants=self.request.user)
+        return threads
+
     def get_users(self, request):
         participant = User.objects.get(username=request.data["username"])
         return request.user, participant
-
-    def get(self, request):
-        # Retrieve all threads that the current user is a participant of
-        threads = Thread.objects.filter(participants=request.user)
-        # Serialize the threads and return the response
-        serializer = ThreadSerializer(threads, many=True)
-        return Response(serializer.data)
 
     def post(self, request):
         try:
@@ -28,6 +39,8 @@ class ThreadView(APIView):
         except User.DoesNotExist:
             # If the participant doesn't exist, return a 404 Not Found response
             return Response(status=status.HTTP_404_NOT_FOUND)
+        except Thread.MultipleObjectsReturned:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         except Thread.DoesNotExist:
             # If the thread doesn't exist, create a new one and add the participants
             newThread = Thread.objects.create()
@@ -41,13 +54,64 @@ class ThreadView(APIView):
             serializer = ThreadSerializer(userThreads)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def delete(self, request):
-        # Retrieve the current user and the participant from the request data
-        try:
-            currentUser, participant = self.get_users(request)
-            participantThreads = Thread.objects.filter(participants=participant)
-            participantThreads.get(participants=currentUser).delete()
-            # Return a 204 No Content response to indicate that the thread was successfully deleted
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Thread.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+
+class ThreadDestroyView(DestroyAPIView):
+    serializer_class = ThreadSerializer
+    lookup_url_kwarg = "id"
+
+    def get_object(self):
+        return Thread.objects.get(id=self.kwargs.get("id"))
+
+
+class ThreadMessageListView(ListAPIView):
+    serializer_class = MessageReadSerializer
+    lookup_url_kwarg = "id"
+
+    def get_queryset(self):
+        return Message.objects.filter(thread=self.kwargs.get("id"))
+
+
+class ThreadMessageCreateView(CreateAPIView):
+    serializer_class = MessageWriteSerializer
+    lookup_url_kwarg = "thread_id"
+
+    def get_serializer(self, *args, **kwargs):
+        serializer_class = self.get_serializer_class()
+        kwargs["context"] = self.get_serializer_context()
+
+        # Check for "id" in url
+        if "thread_id" in self.kwargs:
+            modified_data = self.request.data.copy()
+            modified_data["thread"] = self.kwargs.get("thread_id")
+            kwargs["data"] = modified_data
+            return serializer_class(*args, **kwargs)
+
+        # Else, move on.
+        return serializer_class(*args, **kwargs)
+
+
+class ThreadMessageDetailview(RetrieveUpdateAPIView):
+    serializer_class = MessageReadSerializer
+
+    def get_object(self):
+        thread_id = self.kwargs.get("thread_id")
+        message_id = self.kwargs.get("message_id")
+        return Message.objects.get(thread=thread_id, id=message_id)
+
+    def update(self, *args, **kwargs):
+        message = Message.objects.get(
+            id=self.kwargs.get("message_id"),
+            thread=self.kwargs.get("thread_id"),
+            is_read=False,
+        )
+        if message.sender != self.request.user:
+            message.is_read = True
+            message.save()
+        return Response(status=status.HTTP_200_OK)
+
+
+class UnreadMessageView(APIView):
+    def get(self, request):
+        messages = Message.objects.filter(sender=request.user, is_read=False)
+        serializer = UnreadMessageSerializer(messages)
+        return Response(serializer.data, status=status.HTTP_200_OK)
