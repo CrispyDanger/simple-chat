@@ -14,19 +14,28 @@ from rest_framework.generics import (
 )
 from .models import Thread, Message
 from rest_framework import status
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 
 
 class ThreadListView(ListCreateAPIView):
+    """
+    A view that gets a list of threads.
+
+    Attributes:
+    serializer_class (ThreadSerializer): The serializer used to deserialize and serialize Thread instances.
+    User (get_user_model()): Gets current user instance
+    """
+
     serializer_class = ThreadSerializer
+    User = get_user_model()
 
     def get_queryset(self):
         threads = Thread.objects.filter(participants=self.request.user)
         return threads
 
     def get_users(self, request):
-        participant = User.objects.get(username=request.data["username"])
+        participant = self.User.objects.get(username=request.data["username"])
         return request.user, participant
 
     def post(self, request):
@@ -36,7 +45,7 @@ class ThreadListView(ListCreateAPIView):
             # Try to get the thread that contains both the participant and the current user
             participantThreads = Thread.objects.filter(participants=participant)
             userThreads = participantThreads.get(participants=currentUser)
-        except User.DoesNotExist:
+        except self.User.DoesNotExist:
             # If the participant doesn't exist, return a 404 Not Found response
             return Response(status=status.HTTP_404_NOT_FOUND)
         except Thread.MultipleObjectsReturned:
@@ -56,26 +65,68 @@ class ThreadListView(ListCreateAPIView):
 
 
 class ThreadDestroyView(DestroyAPIView):
+    """
+    A view that deletes a Thread object.
+
+    Attributes:
+    serializer_class (ThreadSerializer): The serializer used to deserialize and serialize Thread instances.
+    lookup_url_kwarg (str): The URL keyword argument to use when retrieving the thread to delete.
+    """
+
     serializer_class = ThreadSerializer
     lookup_url_kwarg = "id"
 
     def get_object(self):
+        """
+        Retrieves the Thread instance to be deleted.
+
+        Returns:
+        Thread: The Thread instance with the given id.
+        """
         return Thread.objects.get(id=self.kwargs.get("id"))
 
 
 class ThreadMessageListView(ListAPIView):
+    """
+    A view that returns a list of messages for a Thread.
+
+    Attributes:
+    serializer_class (MessageReadSerializer): The serializer used to serialize the Message instances.
+    lookup_url_kwarg (str): The URL keyword argument to use when retrieving the thread messages.
+    """
+
     serializer_class = MessageReadSerializer
     lookup_url_kwarg = "id"
 
     def get_queryset(self):
+        """
+        Retrieves the list of messages for the Thread.
+
+        Returns:
+        QuerySet: A QuerySet containing the messages for the Thread.
+        """
         return Message.objects.filter(thread=self.kwargs.get("id"))
 
 
 class ThreadMessageCreateView(CreateAPIView):
+    """
+    A view that creates a new Message object for a Thread.
+
+    Attributes:
+    serializer_class (MessageWriteSerializer): The serializer used to deserialize and serialize Message instances.
+    lookup_url_kwarg (str): The URL keyword argument to use when retrieving the Thread id.
+    """
+
     serializer_class = MessageWriteSerializer
     lookup_url_kwarg = "thread_id"
 
     def get_serializer(self, *args, **kwargs):
+        """
+        Returns the serializer instance that will be used to deserialize and serialize Message instances.
+
+        Returns:
+        MessageWriteSerializer: The serializer instance that will be used to deserialize and serialize Message instances.
+        """
         serializer_class = self.get_serializer_class()
         kwargs["context"] = self.get_serializer_context()
 
@@ -91,27 +142,50 @@ class ThreadMessageCreateView(CreateAPIView):
 
 
 class ThreadMessageDetailview(RetrieveUpdateAPIView):
+    """
+    A view that retrieves and updates a Message object for a Thread.
+
+    Attributes:
+    serializer_class (MessageReadSerializer): The serializer used to serialize the Message instance.
+    """
+
     serializer_class = MessageReadSerializer
 
     def get_object(self):
+        """
+        Retrieves the Message instance to retrieve or update.
+
+        Returns:
+        Message: The Message instance with the given thread and message ids.
+        """
         thread_id = self.kwargs.get("thread_id")
         message_id = self.kwargs.get("message_id")
         return Message.objects.get(thread=thread_id, id=message_id)
 
-    def update(self, *args, **kwargs):
-        message = Message.objects.get(
-            id=self.kwargs.get("message_id"),
-            thread=self.kwargs.get("thread_id"),
-            is_read=False,
-        )
-        if message.sender != self.request.user:
-            message.is_read = True
-            message.save()
-        return Response(status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        """
+        Handles GET requests to retrieve a Message instance.
+
+        If the Message instance was sent by another user, sets the is_read attribute to True.
+
+        Returns:
+        Response: The serialized Message instance.
+        """
+        response = super().get(request, *args, **kwargs)
+        messages = self.get_object()
+        if messages.sender != self.request.user:
+            messages.is_read = True
+            messages.save()
+        return response
 
 
 class UnreadMessageView(APIView):
-    def get(self, request):
-        messages = Message.objects.filter(sender=request.user, is_read=False)
+    """
+    A view that returns a list of unread messages for the current user.
+
+    """
+
+    def get(self, request, format=None):
+        messages = Message.objects.filter(is_read=False).exclude(sender=request.user)
         serializer = UnreadMessageSerializer(messages)
         return Response(serializer.data, status=status.HTTP_200_OK)
