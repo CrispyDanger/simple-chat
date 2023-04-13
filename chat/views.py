@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 
 class ThreadListView(ListCreateAPIView):
     """
-    A view that gets a list of threads.
+    A view that gets a list of threads and creates new Threads.
 
     Attributes:
     serializer_class (ThreadSerializer): The serializer used to deserialize and serialize Thread instances.
@@ -43,7 +43,8 @@ class ThreadListView(ListCreateAPIView):
             # Try to retrieve the current user and the participant from the request data
             currentUser, participant = self.get_users(request)
             # Try to get the thread that contains both the participant and the current user
-            participantThreads = Thread.objects.filter(participants=participant)
+            participantThreads = Thread.objects.filter(
+                participants=participant)
             userThreads = participantThreads.get(participants=currentUser)
         except self.User.DoesNotExist:
             # If the participant doesn't exist, return a 404 Not Found response
@@ -186,6 +187,7 @@ class UnreadMessageView(APIView):
     """
 
     def get(self, request, format=None):
-        messages = Message.objects.filter(is_read=False).exclude(sender=request.user)
+        messages = Message.objects.filter(
+            is_read=False).exclude(sender=request.user)
         serializer = UnreadMessageSerializer(messages)
         return Response(serializer.data, status=status.HTTP_200_OK)
