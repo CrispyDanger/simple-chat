@@ -1,11 +1,6 @@
 
 # Simple Chat
 
-[![Django CI](https://github.com/CrispyDanger/simple-chat/actions/workflows/django.yml/badge.svg)](https://github.com/CrispyDanger/simple-chat/actions/workflows/django.yml)
-
-
-
-
 ## Environment Variables
 
 To run this project, you will need to add the following environment variables to your .env file
